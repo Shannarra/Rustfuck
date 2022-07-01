@@ -53,7 +53,7 @@ fn lex(program: &String) -> Vec<Token> {
         token = Token::new(typ, id);
 
         if token.typ == TokenType::Invalid {
-            panic!("Invalid token {:?} at {:?}", ch, id);
+           panic!("Invalid token {:?} at {:?}", ch, id);
         } else {
             tokens.push(token);
         }
@@ -100,7 +100,7 @@ fn parse(program: &Vec<Token>, capacity: usize, debug: bool, tape_debug: (bool, 
                     let next = seek_closing(ip, program)?;
 
                     if next == 0 {
-                        panic!("Closing ] not found for [ at {}", ip);
+                        return Err(format!("Closing ] not found for [ at {}", ip));
                     } else {
                         ip = next + 1;
                         continue;
@@ -197,7 +197,7 @@ fn main() -> Result<(), String> {
     let args = std::env::args().collect::<Vec<String>>();
 
     if args.len() == 1 {
-        panic!("[WARN] No arguments provided. See -h or --help for more info.");
+        return Err("No arguments provided. See -h or --help for more info.".to_string());
     }
 
     let mut file = String::new();
@@ -232,7 +232,7 @@ fn main() -> Result<(), String> {
                         i+=1;
                         continue;
                     } else {
-                        panic!("No file with filename \"{}\" was found", args[i+1]);  
+                        return Err(format!("No file with filename \"{}\" was found", args[i+1]));  
                     }
                 },
                 "-d" | "--debug" => {
@@ -260,7 +260,7 @@ fn main() -> Result<(), String> {
     println!("TAPE DBUG: {:?}", tape_debug);
 
     if file.is_empty() {
-        panic!("No filename provided.")
+        return Err("No filename provided.".to_string())
     }
 
     exec(&file, cap, debug, tape_debug)
