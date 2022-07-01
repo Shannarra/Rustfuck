@@ -1,3 +1,6 @@
+static HELP_STRNO: usize = 1;
+static INSTRS_STRNO: usize = 2;
+
 fn get_byte() -> u8 {
     use std::io::Read;
 
@@ -76,7 +79,7 @@ fn seek_closing(start_id: usize, program: &Vec<Token>) -> usize {
 }
 
 fn parse(program: &Vec<Token>, capacity: usize, debug: bool) -> Result<(), String> {
-    let mut stack = vec![0 as i32; capacity];
+    let mut tape = vec![0 as i32; capacity];
     let mut dp = 0; // data pointer
     let mut ip = 0; // index of the token within the program, instruction pointer
     let mut last_opening_pos = 0;
@@ -87,13 +90,13 @@ fn parse(program: &Vec<Token>, capacity: usize, debug: bool) -> Result<(), Strin
         match token.typ {
             TokenType::Left  => dp -= 1,
             TokenType::Right => dp += 1,
-            TokenType::Plus  => stack[dp] += 1,
-            TokenType::Minus => stack[dp] -= 1,
-            TokenType::Comma => stack[dp] = get_byte() as i32,
-            TokenType::Dot   => print!("{}", char::from_u32(stack[dp] as u32).unwrap() ),
+            TokenType::Plus  => tape[dp] += 1,
+            TokenType::Minus => tape[dp] -= 1,
+            TokenType::Comma => tape[dp] = get_byte() as i32,
+            TokenType::Dot   => print!("{}", char::from_u32(tape[dp] as u32).unwrap() ),
             TokenType::Lpar  => {
                 last_opening_pos = ip;
-                if stack[dp] == 0 {
+                if tape[dp] == 0 {
                     let next = seek_closing(ip, program);
 
                     if next == 0 {
@@ -105,7 +108,7 @@ fn parse(program: &Vec<Token>, capacity: usize, debug: bool) -> Result<(), Strin
                 }
             },
             TokenType::Rpar  => {
-                if stack[dp] != 0 {
+                if tape[dp] != 0 {
                     ip = last_opening_pos + 1;
                     continue;
                 }
@@ -132,31 +135,36 @@ Debug information after execution:
     Ok(())
 }
 
-fn puts(help: bool, instrs: bool) {
-    if help {
-        println!("
-        Usage: rustfuck [FILENAME] {{OPTIONS}}
+fn puts(strno: usize) {
+    let mut txt = "";
 
-        Available options:
-            -h --help:              Print this message
-            -i -- instructions:     Print all available Brainfuck instructions
-            -c --cap --capacity:    Change the capacity of the data storage. Default is 100.
-        ");
-    }
-    if instrs {
-        println!("
-        Available instructions:
+    txt = match strno {
+        1 => { "
+            Usage: rustfuck [FILENAME] {{OPTIONS}}
 
-        > 	Increment the data pointer (to point to the next cell to the right).
-        < 	Decrement the data pointer (to point to the next cell to the left).
-        + 	Increment (increase by one) the byte at the data pointer.
-        - 	Decrement (decrease by one) the byte at the data pointer.
-        . 	Output the byte at the data pointer.
-        , 	Accept one byte of input, storing its value in the byte at the data pointer.
-        [ 	If the byte at the data pointer is zero, then instead of moving the instruction pointer forward to the next command, jump it forward to the command after the matching ] command.
-        ] 	If the byte at the data pointer is nonzero, then instead of moving the instruction pointer forward to the next command, jump it back to the command after the matching [ command.
-        ");
-    }
+            Available options:
+                -h --help:              Print this message
+                -i -- instructions:     Print all available Brainfuck instructions
+                -c --cap --capacity:    Change the capacity of the data storage. Default is 100.
+            \n"
+        },    
+        2 => { "
+            Available instructions:
+
+            > 	Increment the data pointer (to point to the next cell to the right).
+            < 	Decrement the data pointer (to point to the next cell to the left).
+            + 	Increment (increase by one) the byte at the data pointer.
+            - 	Decrement (decrease by one) the byte at the data pointer.
+            . 	Output the byte at the data pointer.
+            , 	Accept one byte of input, storing its value in the byte at the data pointer.
+            [ 	If the byte at the data pointer is zero, then instead of moving the instruction pointer forward to the next command, jump it forward to the command after the matching ] command.
+            ] 	If the byte at the data pointer is nonzero, then instead of moving the instruction pointer forward to the next command, jump it back to the command after the matching [ command.
+            \n"
+        },
+        _ => {""}
+    };
+
+    print!("{}", txt);
 }
 
 fn exec(filename: &str, capacity: usize, debug: bool) -> Result<(), String> {
@@ -184,10 +192,10 @@ fn main() -> Result<(), String> {
         if args[i].starts_with('-') {
             match args[i].as_str() {
                 "-h" | "--help" => {
-                    puts(true, false);
+                    puts(HELP_STRNO);
                 },
                 "-i" | "--instructions" => {
-                    puts(false, true);                
+                    puts(INSTRS_STRNO);                
                 },
                 "-c" | "--cap" | "--capacity" => {
                     if let Ok(c) = args[i + 1].parse::<usize>() {
@@ -204,7 +212,7 @@ fn main() -> Result<(), String> {
                         i+=1;
                         continue;
                     } else {
-                        panic!("No file with filename \"{}\" was found", args[i]);  
+                        panic!("No file with filename \"{}\" was found", args[i+1]);  
                     }
                 },
                 "-d" | "--debug" => {
