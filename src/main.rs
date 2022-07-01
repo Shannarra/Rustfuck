@@ -63,22 +63,22 @@ fn lex(program: &String) -> Vec<Token> {
     tokens
 }
 
-fn seek_closing(start_id: usize, program: &Vec<Token>) -> usize {
+fn seek_closing(start_id: usize, program: &Vec<Token>) -> Result<usize, String> {
     for t in program {
         if t.pos <= start_id { continue; }
         if t.typ == TokenType::Lpar {
-            panic!();
+            return Err(format!("Nested loops are not allowed. Position: {}", t.pos+1));
         }
 
         if t.typ == TokenType::Rpar {
-            return t.pos;
+            return Ok(t.pos);
         }
     }
 
-    0 // no way a closing ] will be at the start of the program
+    Ok(0) // no way a closing ] will be at the start of the program
 }
 
-fn parse(program: &Vec<Token>, capacity: usize, debug: bool) -> Result<(), String> {
+fn parse(program: &Vec<Token>, capacity: usize, debug: bool, tape_debug: (bool, bool)) -> Result<(), String> {
     let mut tape = vec![0 as i32; capacity];
     let mut dp = 0; // data pointer
     let mut ip = 0; // index of the token within the program, instruction pointer
@@ -97,7 +97,7 @@ fn parse(program: &Vec<Token>, capacity: usize, debug: bool) -> Result<(), Strin
             TokenType::Lpar  => {
                 last_opening_pos = ip;
                 if tape[dp] == 0 {
-                    let next = seek_closing(ip, program);
+                    let next = seek_closing(ip, program)?;
 
                     if next == 0 {
                         panic!("Closing ] not found for [ at {}", ip);
@@ -124,12 +124,27 @@ fn parse(program: &Vec<Token>, capacity: usize, debug: bool) -> Result<(), Strin
     }
 
     if debug {
+        let activate_tape = tape_debug.0;
         println!("
 [INFO]
 Debug information after execution:
     Data lane capacity: {}
+    {}
+        ", capacity, if activate_tape { "Tape cells:" } else { "" }
+    );
 
-        ", capacity);
+        if activate_tape {
+            let mut st = String::from("\t");
+            for cell in tape {
+                if !(tape_debug.1) && cell == 0 {
+                    continue;
+                } else {
+                    st.push(cell.to_string().chars().next().unwrap());
+                    st.push('|');
+                }
+            }
+            println!("{}", st);
+        }
     }
     
     Ok(())
@@ -140,12 +155,14 @@ fn puts(strno: usize) {
 
     txt = match strno {
         1 => { "
-            Usage: rustfuck [FILENAME] {{OPTIONS}}
+            Usage: rustfuck -f [FILENAME] {{OPTIONS}}
 
             Available options:
                 -h --help:              Print this message
                 -i -- instructions:     Print all available Brainfuck instructions
                 -c --cap --capacity:    Change the capacity of the data storage. Default is 100.
+                -f | --file [FILEPATH]: Provide a filename for the interpreter to use.
+                -t | --tape {a | all}:  Print the tape. Will exclude all 0-valued cells by default. Provide value 'a' or 'all' to print all cells.        
             \n"
         },    
         2 => { "
@@ -167,12 +184,12 @@ fn puts(strno: usize) {
     print!("{}", txt);
 }
 
-fn exec(filename: &str, capacity: usize, debug: bool) -> Result<(), String> {
+fn exec(filename: &str, capacity: usize, debug: bool, tape_debug: (bool, bool)) -> Result<(), String> {
     let mut content: String = std::fs::read_to_string(filename).unwrap().parse().unwrap();
 
     content.retain(|x| !x.is_whitespace());
 
-    parse(&lex(&content), capacity, debug)
+    parse(&lex(&content), capacity, debug, tape_debug)
 }
 
 fn main() -> Result<(), String> {
@@ -187,15 +204,18 @@ fn main() -> Result<(), String> {
     let mut cap: usize = 100;
     let mut i = 1;
     let mut debug = false;
+    let mut tape_debug = (false, false); // (print tape, print all cells)
 
     loop {
         if args[i].starts_with('-') {
             match args[i].as_str() {
                 "-h" | "--help" => {
                     puts(HELP_STRNO);
+                    return Ok(());
                 },
                 "-i" | "--instructions" => {
-                    puts(INSTRS_STRNO);                
+                    puts(INSTRS_STRNO);
+                    return Ok(());                
                 },
                 "-c" | "--cap" | "--capacity" => {
                     if let Ok(c) = args[i + 1].parse::<usize>() {
@@ -217,6 +237,15 @@ fn main() -> Result<(), String> {
                 },
                 "-d" | "--debug" => {
                     debug = true;
+                },
+                "-t" | "--tape" => {
+                    tape_debug.0 = true;
+
+                    if i < args.len() - 1 {
+                        if args[i+1] == "a" || args[i + 1] == "all" {
+                            tape_debug.1 = true;
+                        }
+                    }
                 }
                 _ => {
                     println!("Invalid argument \"{}\"", args[i]);
@@ -228,9 +257,11 @@ fn main() -> Result<(), String> {
         if i == args.len() { break; }
     }
     
+    println!("TAPE DBUG: {:?}", tape_debug);
+
     if file.is_empty() {
         panic!("No filename provided.")
     }
 
-    exec(&file, cap, debug)
+    exec(&file, cap, debug, tape_debug)
 }
